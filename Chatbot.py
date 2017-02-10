@@ -38,6 +38,14 @@ data={'greetings' : greetings, 'questions' : questions, 'answers' : answers} #im
 global input_data
 input_data={}
 
+datas=session.query(Data).all()
+
+for i in datas:
+    input_data[i.noun]=[]
+    for a in i.adjectives:
+        input_data[i.noun].append(a.adjective)
+
+
 for kind in data:
     exec(str(kind)+'=[word.text for word in session.query(Word).filter_by(kind=kind).all()]')
 #print info
@@ -94,13 +102,51 @@ def get_subjects(userInput):
     return subjects
 
 def mine_data(userInput):
+    mined_data=False
+    new_data_mined=False
     for word in range(len(userInput)):
-        if userInput[word] in 'is are am'.split():
-            if userInput[word]=='am':
-                input_data['human']=userInput[word+1:]
-            elif userInput[word] in'is are'.split():
-                input_data[userInput[word-1]]=userInput[word+1:]
-    print input_data
+        if userInput[word] in 'is are am'.split() and word!=0:
+            adjective=''.join(data+' ' for data in userInput[word+1:])[:-1]
+            if userInput[word-1] in 'how what who when why'.split():
+                continue
+
+            if userInput[word]=='am': #human
+                if adjective not in input_data['human']:
+                    input_data['human'].append(adjective)
+                    noun='human'
+                    new_data_mined=True
+
+            elif userInput[word] in 'is are'.split():
+                if userInput[word-1][0:] in 'you bot'.split(): #bot
+                    if adjective not in input_data['bot']:
+                        input_data['bot'].append(adjective)
+                        noun='bot'
+                        data_id=session.query(Data).filter_by(noun=noun)
+                        new_data_mined=True
+
+                else: #else
+                    if userInput[word-1] not in input_data:
+                        input_data[userInput[word-1]]=[]
+                        input_data[userInput[word-1]].append(adjective)
+                        noun=userInput[word-1]
+                        new_data=Data(noun=noun)
+                        session.add(new_data)
+                        session.commit()
+                        new_data_mined=True
+                    else:
+                        if adjective not in input_data[userInput[word-1]]:
+                            input_data[userInput[word-1]].append(adjective)
+                            noun=input_data[userInput[word-1]]
+                            new_data_mined=True
+            
+            if new_data_mined:
+                data_id=session.query(Data).filter_by(noun=noun).one().id
+                adjective=Adjective(adjective=adjective,data_id=data_id)
+                session.add(adjective)
+            mined_data=True
+    session.commit()
+    return mined_data
+
 def separate_sentences(userInput,subjects):
     sentences_subjects={}
     l=list(subjects.keys())
@@ -113,19 +159,21 @@ def separate_sentences(userInput,subjects):
     print 'sentences subects: '+str(sentences_subjects)
     return sentences_subjects
 
-def generate_responses(userInput,subject):
+def generate_responses(userInput,subject,mined_data):
+    if userInput==[]:
+        return ['Please write some words here...']
+    if mined_data:
+        return ['Good to know that!']
     if userInput[0] in exits:
         print random_capitalized_answer(goodbyes)
         return '!#@BREAK@#!'
     if userInput[0] in 'help info'.split():
         return [info[0]]
-    if userInput==[]:
-        return ['Please write some words here...']
     
     responses=[]
     stop=False
     if subject=='human':
-        response= 'I know nothing about you...'
+        response= 'Good to know that!'
     elif subject=='someone_else':
         response= userInput[0]+' is not really '+userInput[2:]
     else:
@@ -139,8 +187,16 @@ def generate_responses(userInput,subject):
                 word=word[:-1]
                 #userInput=userInput[:i]
                 stop=True
-
-            if word in curses:
+            if word in input_data:
+                if word[-1]=='s':
+                    response=word+' are: '+''.join(data+', ' for data in input_data[word])[:-2]+'.'
+                elif word[-1] in 's o x z'.split() or word[-2:] in 'ch sh ss'.split():
+                    response=word+'es are: '+''.join(data+', ' for data in input_data[word])[:-2]+'.'
+                elif word[-1] in 'y'.split() and word[-2] not in 'a e i o u'.split():
+                    response=word+'ies are: '+''.join(data+', ' for data in input_data[word])[:-2]+'.'
+                else:
+                    response=word+'s are: '+''.join(data+', ' for data in input_data[word])[:-2]+'.'
+            elif word in curses:
                 response=word.capitalize()+'?! '+ random_capitalized_answer(offended)
             elif word in greetings:
                 response= random_capitalized_answer(greetings)
@@ -165,7 +221,7 @@ print '\n\t@ Hello! It\'s Eilon\'s Chatbot!\n\t  Please type "help" if you need 
 while True:
     userInput = process_input(raw_input(">>> "))
     print('')
-    mine_data(userInput)
+    mined_data=mine_data(userInput)
     subjects=get_subjects(userInput)
     #responses=generate_responses(userInput)
     responses=[]
@@ -176,7 +232,7 @@ while True:
 
     if  subjects=={}:
         print 'subjects=={}'
-        responses=generate_responses(userInput_without,'else')
+        responses=generate_responses(userInput_without,'else',mined_data)
 
     else:
         if userInput_without==[]:
@@ -190,13 +246,14 @@ while True:
                 userInput_without.remove(word)        
 
         #print userInput_without
-        responses=generate_responses(userInput_without,'else')
+        responses=generate_responses(userInput_without,'else',mined_data)
 
         for sentence in sentences_subjects:
             sentence_words=eval(sentence[2:])
             subject=sentences_subjects[sentence]
-            responses+=generate_responses(sentence_words,subject)
-            print subject
+            responses+=generate_responses(sentence_words,subject,mined_data)
+            print 'subject: '+str(subject)
+    print 'input_data: '+str(input_data)
         #continue
     print '\t@ '+responses[0]
     for response in responses[1:]:

@@ -6,7 +6,13 @@ DBSession = sessionmaker(bind=engine, autoflush=False)
 session = DBSession()
 
 session.query(Word).delete()
+session.query(Data).delete()
+session.query(Adjective).delete()
 
+nouns=['human','bot']
+for noun in nouns:
+	new_data=Data(noun=noun)
+	session.add(new_data)
 input_data={
 	'greetings' : ['hola', 'hello', 'hi','hey'],
 
