@@ -79,7 +79,7 @@ def process_input(s):
             s=s.replace(word,word+'g')
 
     s=s.split()
-    print s
+    print 'processed: '+str(s) #debugging
     return s
 
 def random_capitalized_answer(list_of_answers):
@@ -90,7 +90,6 @@ def get_subjects(userInput):
     subjects={}
     for word in range(len(userInput)):
         if userInput[word] in 'how what who when why'.split():
-            print '#@$'
             return {}
         if userInput[word] in 'you'.split():
             subjects[str(word)]='bot'
@@ -107,8 +106,15 @@ def mine_data(userInput):
     for word in range(len(userInput)):
         if userInput[word] in 'is are am'.split() and word!=0:
             adjective=''.join(data+' ' for data in userInput[word+1:])[:-1]
+            if adjective=='':
+                continue
+
             if userInput[word-1] in 'how what who when why'.split():
                 continue
+
+            for w in range(len(adjective.split())-1):
+                if adjective.split()[w] in 'am is are'.split():
+                    adjective=''.join(i+' ' for i in adjective.split()[:w-1])[:-1]
 
             if userInput[word]=='am': #human
                 if adjective not in input_data['human']:
@@ -136,14 +142,16 @@ def mine_data(userInput):
                     else:
                         if adjective not in input_data[userInput[word-1]]:
                             input_data[userInput[word-1]].append(adjective)
-                            noun=input_data[userInput[word-1]]
+                            noun=''.join(i+' ' for i in userInput[word-1].split())[:-1]
+                            print 'noun: '+noun
                             new_data_mined=True
             
-            if new_data_mined:
-                data_id=session.query(Data).filter_by(noun=noun).one().id
-                adjective=Adjective(adjective=adjective,data_id=data_id)
-                session.add(adjective)
             mined_data=True
+            if new_data_mined:
+                if adjective!='':
+                    data_id=session.query(Data).filter_by(noun=noun).one().id
+                    adjective=Adjective(adjective=adjective,data_id=data_id)
+                    session.add(adjective)
     session.commit()
     return mined_data
 
@@ -156,7 +164,6 @@ def separate_sentences(userInput,subjects):
             sentences_subjects[str(i)+' '+str(userInput[int(l[i]):int(l[i+1])])]=subjects[l[i]]
         except:
             sentences_subjects[str(i)+' '+str(userInput[int(l[i]):])]=subjects[l[i]]
-    print 'sentences subects: '+str(sentences_subjects)
     return sentences_subjects
 
 def generate_responses(userInput,subject,mined_data):
@@ -170,25 +177,47 @@ def generate_responses(userInput,subject,mined_data):
     if userInput[0] in 'help info'.split():
         return [info[0]]
     
+    did_not_undertstand_allowed=True
+
     responses=[]
     stop=False
     if subject=='human':
         response= 'Good to know that!'
-    elif subject=='someone_else':
-        response= userInput[0]+' is not really '+userInput[2:]
     else:
-        print '!@#else'
         for i in range(len(userInput)):
             word=userInput[i]
-            if word in 'how what who when why'.split(): #if question
+            if word in 'how who when why'.split(): #if question
                 word=''
                 for w in userInput[i:]:
                     word+=w+' '
                 word=word[:-1]
                 #userInput=userInput[:i]
                 stop=True
-            if word in input_data:
-                if word[-1]=='s':
+            
+            if word in 'what'.split():
+                did_not_undertstand_allowed=False
+            
+            if word in input_data or word in 'you me'.split():
+                if word in 'me i'.split():
+                    word='human'
+                elif word=='you':
+                    word='bot'
+
+                if input_data[word]==[]:
+                    if word[-1]=='s' and word[-2]!='s':
+                        response='I don\'t know anything about '+word+'.'
+                    elif word[-1] in 's o x z'.split() or word[-2:] in 'ch sh ss'.split():
+                        response='I don\'t know anything about '+word+'es.'
+                    elif word[-1] in 'y'.split() and word[-2] not in 'a e i o u'.split():
+                        response='I don\'t know anything about '+word+'ies.'
+                    else:
+                        response='I don\'t know anything about '+word+'s.'
+                    responses.append(response)
+                    continue
+
+                if word in 'she he'.split():
+                    response=word+' is: '+''.join(data+', ' for data in input_data[word])[:-2]+'.'
+                elif word[-1]=='s' and word[-2]!='s' or word in 'we they'.split():
                     response=word+' are: '+''.join(data+', ' for data in input_data[word])[:-2]+'.'
                 elif word[-1] in 's o x z'.split() or word[-2:] in 'ch sh ss'.split():
                     response=word+'es are: '+''.join(data+', ' for data in input_data[word])[:-2]+'.'
@@ -204,7 +233,8 @@ def generate_responses(userInput,subject,mined_data):
                 response = random_capitalized_answer(answers)
                 response+='. And how are you?'
             else:
-                response='\\\\ I didn\'t understand what you meant in \"'+word+'\"'
+                if did_not_undertstand_allowed:
+                    response='\\\\ I didn\'t understand what you meant in \"'+word+'\"'
             responses.append(response)
             if stop:
                 break
@@ -246,7 +276,7 @@ while True:
                 userInput_without.remove(word)        
 
         #print userInput_without
-        responses=generate_responses(userInput_without,'else',mined_data)
+        #responses=generate_responses(userInput_without,'else',mined_data)
 
         for sentence in sentences_subjects:
             sentence_words=eval(sentence[2:])
