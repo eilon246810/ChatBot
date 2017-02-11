@@ -79,7 +79,7 @@ def process_input(s):
             s=s.replace(word,word+'g')
 
     s=s.split()
-    print 'processed: '+str(s) #debugging
+    print 'proceed: '+str(s) #debugging
     return s
 
 def random_capitalized_answer(list_of_answers):
@@ -186,7 +186,7 @@ def generate_responses(userInput,subject,mined_data):
     else:
         for i in range(len(userInput)):
             word=userInput[i]
-            if word in 'how who when why'.split(): #if question
+            if word in 'how who when why what'.split(): #if question
                 word=''
                 for w in userInput[i:]:
                     word+=w+' '
@@ -247,45 +247,47 @@ def generate_responses(userInput,subject,mined_data):
 
 print '\n\t@ Hello! It\'s Eilon\'s Chatbot!\n\t  Please type "help" if you need some ;)'
 
+def main():
+    while True:
+        userInput = process_input(raw_input(">>> "))
+        print('')
+        mined_data=mine_data(userInput)
+        subjects=get_subjects(userInput)
+        #responses=generate_responses(userInput)
+        responses=[]
 
-while True:
-    userInput = process_input(raw_input(">>> "))
-    print('')
-    mined_data=mine_data(userInput)
-    subjects=get_subjects(userInput)
-    #responses=generate_responses(userInput)
-    responses=[]
-    if responses=='!#@BREAK@#!':
-        break
+        userInput_without=userInput
 
-    userInput_without=userInput
+        if  subjects=={}:
+            responses=generate_responses(userInput_without,'else',mined_data)
 
-    if  subjects=={}:
-        print 'subjects=={}'
-        responses=generate_responses(userInput_without,'else',mined_data)
+        else:
+            if userInput_without==[]:
+                print 'OK'
+                #continue
+            sentences_subjects=separate_sentences(userInput,subjects)
+            for sentence in sentences_subjects:
+                sentence_words=eval(sentence[2:])
+                for word in sentence_words:
+                    userInput_without.remove(word)        
 
-    else:
-        if userInput_without==[]:
-            print 'OK'
+            #print userInput_without
+            #responses=generate_responses(userInput_without,'else',mined_data)
+
+        if responses=='!#@BREAK@#!':
+            break
+
+            for sentence in sentences_subjects:
+                sentence_words=eval(sentence[2:])
+                subject=sentences_subjects[sentence]
+                responses+=generate_responses(sentence_words,subject,mined_data)
+                print 'subject: '+str(subject)
+        print 'input_data: '+str(input_data)
             #continue
-        sentences_subjects=separate_sentences(userInput,subjects)
-        for sentence in sentences_subjects:
-            sentence_words=eval(sentence[2:])
-            print userInput_without, sentence_words
-            for word in sentence_words:
-                userInput_without.remove(word)        
+        print '\t@ '+responses[0]
+        for response in responses[1:]:
+            print '\t  '+response
+        print('')
 
-        #print userInput_without
-        #responses=generate_responses(userInput_without,'else',mined_data)
-
-        for sentence in sentences_subjects:
-            sentence_words=eval(sentence[2:])
-            subject=sentences_subjects[sentence]
-            responses+=generate_responses(sentence_words,subject,mined_data)
-            print 'subject: '+str(subject)
-    print 'input_data: '+str(input_data)
-        #continue
-    print '\t@ '+responses[0]
-    for response in responses[1:]:
-        print '\t  '+response
-    print('')
+if __name__ == '__main__':
+    main()
