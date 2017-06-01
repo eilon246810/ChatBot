@@ -136,18 +136,18 @@ def mine_data(userInput):
                         new_data_mined = True
 
                 else:  # else
-                    if userInput[word - 1] not in input_data:
-                        input_data[userInput[word - 1]] = []
-                        input_data[userInput[word - 1]].append(adjective)
-                        noun = userInput[word - 1]
+                    if ''.join(i + ' ' for i in userInput[:word])[:-1] not in input_data:
+                        noun = ''.join(i + ' ' for i in userInput[:word])[:-1]
+                        input_data[noun] = []
+                        input_data[noun].append(adjective)
                         new_data = Data(noun=noun)
                         session.add(new_data)
                         session.commit()
                         new_data_mined = True
                     else:
-                        if adjective not in input_data[userInput[word - 1]]:
-                            input_data[userInput[word - 1]].append(adjective)
-                            noun = ''.join(i + ' ' for i in userInput[word - 1].split())[:-1]
+                        if adjective not in input_data[''.join(i + ' ' for i in userInput[:word])[:-1]]:
+                            input_data[''.join(i + ' ' for i in userInput[:word])[:-1]].append(adjective)
+                            noun = ''.join(i + ' ' for i in userInput[:word])[:-1]
                             print 'noun: ' + noun
                             new_data_mined = True
 
@@ -177,6 +177,7 @@ def generate_responses(userInput, subject, mined_data):
     if userInput == []:
         return ['Please write some words here...']
     if mined_data:
+        print '#########################'
         return ['Good to know that!']
     if userInput[0] in exits:
         print random_capitalized_answer(goodbyes)
@@ -184,16 +185,20 @@ def generate_responses(userInput, subject, mined_data):
     if userInput[0] in 'help info'.split():
         return [info[0]]
 
-    did_not_undertstand_allowed = True
+    did_not_understand_allowed = True
 
     responses = []
     stop = False
+    if userInput == ['i']:
+        if did_not_understand_allowed:
+            response = '\\\\ I didn\'t understand what you meant in \"' + 'i' + '\"'
+        return [response]
     if subject == 'human':
         response = 'Good to know that!'
-        print '#####'
     else:
         for i in range(len(userInput)):
             word = userInput[i]
+
             if word in 'how who when why what'.split():  # if question
                 word = ''
                 for w in userInput[i:]:
@@ -203,9 +208,24 @@ def generate_responses(userInput, subject, mined_data):
                 stop = True
 
             if word in 'what'.split():
-                did_not_undertstand_allowed = False
+                did_not_understand_allowed = False
 
-            if word in input_data or word in 'you me'.split():
+            if ''.join(i + ' ' for i in userInput)[:-1] in input_data:
+                word = ''.join(i + ' ' for i in userInput)[:-1]
+                if word in 'she he'.split():
+                    response = word + ' is: ' + ''.join(data + ', ' for data in input_data[word])[:-2] + '.'
+                elif word[-1] == 's' and word[-2] != 's' or word in 'we they'.split():
+                    response = word + ' are: ' + ''.join(data + ', ' for data in input_data[word])[:-2] + '.'
+                elif word[-1] in 's o x z'.split() or word[-2:] in 'ch sh ss'.split():
+                    response = word + 'es are: ' + ''.join(data + ', ' for data in input_data[word])[:-2] + '.'
+                elif word[-1] in 'y'.split() and word[-2] not in 'a e i o u'.split():
+                    response = word + 'ies are: ' + ''.join(data + ', ' for data in input_data[word])[:-2] + '.'
+                else:
+                    response = word + 's are: ' + ''.join(data + ', ' for data in input_data[word])[:-2] + '.'
+                return [response]
+                break
+
+            elif word in input_data or word in 'you me'.split():
                 if word in 'me i'.split():
                     word = 'human'
                 elif word == 'you':
@@ -241,7 +261,7 @@ def generate_responses(userInput, subject, mined_data):
                 response = random_capitalized_answer(answers)
                 response += '. And how are you?'
             else:
-                if did_not_undertstand_allowed:
+                if did_not_understand_allowed:
                     response = '\\\\ I didn\'t understand what you meant in \"' + word + '\"'
             responses.append(response)
             if stop:
@@ -277,18 +297,23 @@ def main():
                 sentence_words = eval(sentence[2:])
                 for word in sentence_words:
                     userInput_without.remove(word)
-
-                    # print userInput_without
-                    # responses=generate_responses(userInput_without,'else',mined_data)
-
-        if responses == '!#@BREAK@#!':
-            break
-
             for sentence in sentences_subjects:
                 sentence_words = eval(sentence[2:])
                 subject = sentences_subjects[sentence]
                 responses += generate_responses(sentence_words, subject, mined_data)
                 print 'subject: ' + str(subject)
+                # print userInput_without
+                # responses=generate_responses(userInput_without,'else',mined_data)
+
+        if responses == '!#@BREAK@#!':
+            break
+        '''
+        for sentence in sentences_subjects:
+            sentence_words = eval(sentence[2:])
+            subject = sentences_subjects[sentence]
+            responses += generate_responses(sentence_words, subject, mined_data)
+            print 'subject: ' + str(subject)
+        '''
         print 'input_data: ' + str(input_data)
         # continue
         print '\t@ ' + responses[0]
